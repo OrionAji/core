@@ -60,3 +60,48 @@ class SignUpView(generic.CreateView):
     form_class = UserCreationForm
     success_url = reverse_lazy('login')
     template_name = 'registration/signup.html'
+    
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.utils import timezone
+from datetime import timedelta
+from .models import Pilot, Sortie
+
+class PilotViewSet(viewsets.ModelViewSet):
+    queryset = Pilot.objects.all()
+    serializer_class = PilotSerializer
+
+    @action(detail=False, methods=['get'], url_path='currency-status')
+    def currency_status(self, request):
+        """
+        Returns a list of all pilots and their current flight currency 
+        across different sortie types.
+        """
+        pilots = Pilot.objects.all()
+        report = []
+
+        # Define our safety windows again
+        RULES = {'NIGHT': 30, 'FORM': 30, 'GH': 90, 'IF': 60}
+
+        for pilot in pilots:
+            pilot_data = {
+                "callsign": pilot.callsign,
+                "status": {}
+            }
+            
+            for s_type, days in RULES.items():
+                cutoff = timezone.now() - timedelta(days=days)
+                
+                # Check if they have a recent completed flight
+                is_current = Sortie.objects.filter(
+                    pilot=pilot,
+                    sortie_type=s_type,
+                    is_completed=True,
+                    scheduled_at__gte=cutoff
+                ).exists()
+
+                pilot_data["status"][s_type] = "CURRENT" if is_current else "EXPIRED"
+            
+            report.append(pilot_data)
+
+        return Response(report)
