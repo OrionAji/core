@@ -1,0 +1,7 @@
+<h2>Pilot Login</h2>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Login</button>
+</form>
+<p>New pilot? <a href="{% url 'signup' %}">Register here</a></p>

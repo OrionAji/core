@@ -1,0 +1,20 @@
+# Django
+*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+media/
+staticfiles/
+
+# Virtual Environments
+venv/
+env/
+.virtualenvs/
+
+# Postman & Tools
+*.postman_collection.json
+*.postman_environment.json
+postman_dump.json
+.DS_Store
