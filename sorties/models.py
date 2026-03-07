@@ -47,3 +47,54 @@ class Sortie(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean() # Ensures validation runs before saving
         super().save(*args, **kwargs)
+        
+from django.utils import timezone
+from datetime import timedelta
+from django.core.exceptions import ValidationError
+
+class Sortie(models.Model):
+    # Your existing fields (aircraft, pilot, etc.)
+    
+    TYPE_CHOICES = [
+        ('NIGHT', 'Night Flying'),
+        ('FORM', 'Formation'),
+        ('GH', 'General Handling'),
+        ('IF', 'Instrument Flight'),
+    ]
+    sortie_type = models.CharField(max_length=10, choices=TYPE_CHOICES)
+    scheduled_at = models.DateTimeField(default=timezone.now)
+
+    def clean(self):
+        super().clean()
+        
+        # Define currency rules (in days)
+        CURRENCY_RULES = {
+            'NIGHT': 30,  # Must have flown Night in the last 30 days
+            'FORM': 30,   # Formation is high-risk, needs 30-day currency
+            'GH': 90,     # General handling is more lenient
+            'IF': 60,     # Instrument flight
+        }
+
+        days_allowed = CURRENCY_RULES.get(self.sortie_type, 30)
+        cutoff_date = timezone.now() - timedelta(days=days_allowed)
+
+        # Check if the pilot has a COMPLETED sortie of this type recently
+        recent_flight_exists = Sortie.objects.filter(
+            pilot=self.pilot,
+            sortie_type=self.sortie_type,
+            scheduled_at__gte=cutoff_date,
+            is_completed=True
+        ).exists()
+
+        # If this isn't their very first flight of this type, check currency
+        # (We allow the first one assuming it's an instructor-led checkout)
+        total_flights = Sortie.objects.filter(pilot=self.pilot, sortie_type=self.sortie_type).count()
+
+        if total_flights > 0 and not recent_flight_exists:
+            raise ValidationError(
+                f"Pilot {self.pilot.callsign} is out of currency for {self.get_sortie_type_display()}. "
+                f"Last flight was more than {days_allowed} days ago."
+            )
+            
+        if not recent_flight_exists and not self.is_instructional:
+            raise ValidationError("Pilot is out of currency. This must be an Instructional flight.")
