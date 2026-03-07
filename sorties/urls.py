@@ -8,7 +8,7 @@ router = DefaultRouter()
 # 2. Register your ViewSets
 # The router automatically builds the 'currency-status' and 'readiness-report' URLs
 router.register(r'aircraft', AircraftViewSet)
-router.register(r'pilots', PilotViewSet)
+router.register(r'pilots', PilotViewSet, basename='pilot')
 router.register(r'sorties', SortieViewSet)
 
 # 3. Wire up the URL patterns
