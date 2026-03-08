@@ -36,16 +36,20 @@ class AircraftViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='readiness-report')
     def readiness_report(self, request):
         """Quick summary of fleet readiness for the dashboard."""
-        total = self.get_queryset().count()
-        ready = self.get_queryset().filter(status='Mision Capable').count()
-        maintenance = self.get_queryset().filter(status='In Maintenance').count()
-        grounded = self.get_queryset().filter(status='Grounded').count()
+        qs = self.get_queryset()
+        total = qs.count()
+        
+        # Use the Keys ('MC', 'MAINT', 'GND') defined in models.py
+        mission_capable = qs.filter(status='MC').count()
+        maintenance = qs.filter(status='MAINT').count()
+        grounded = qs.filter(status='GND').count()
+        
         return Response({
             "total_aircraft": total,
-            "ready_for_flight": ready,
+            "ready_for_flight": mission_capable,
             "in_maintenance": maintenance,
             "grounded": grounded,
-            "readiness_rate": f"{(ready/total)*100:.1f}%" if total > 0 else "0%"
+            "readiness_rate": f"{(mission_capable/total)*100:.1f}%" if total > 0 else "0.0%"
         })
 
 class PilotViewSet(viewsets.ModelViewSet):
@@ -57,35 +61,24 @@ class PilotViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='currency-status')
     def currency_status(self, request):
-        """Returns a list of all pilots and their current flight currency."""
-        pilots = Pilot.objects.all()
+    # Use prefetch_related to load all sorties at once
+        pilots = Pilot.objects.prefetch_related('sortie_set') 
         report = []
         RULES = {'NIGHT': 30, 'FORM': 30, 'GH': 90, 'IF': 60}
+        now = timezone.now()
 
         for pilot in pilots:
             pilot_data = {"callsign": pilot.callsign, "status": {}}
+            # Get all completed sorties for this pilot once
+            completed_sorties = pilot.sortie_set.filter(is_completed=True)
+            
             for s_type, days in RULES.items():
-                cutoff = timezone.now() - timedelta(days=days)
-                is_current = Sortie.objects.filter(
-                    pilot=pilot,
-                    sortie_type=s_type,
-                    is_completed=True,
+                cutoff = now - timedelta(days=days)
+                # Filter the already-loaded list instead of hitting the DB again
+                is_current = completed_sorties.filter(
+                    sortie_type=s_type, 
                     scheduled_at__gte=cutoff
                 ).exists()
                 pilot_data["status"][s_type] = "CURRENT" if is_current else "EXPIRED"
             report.append(pilot_data)
         return Response(report)
-
-class SortieViewSet(viewsets.ModelViewSet):
-    queryset = Sortie.objects.all()
-    serializer_class = SortieSerializer
-
-    def create(self, request, *args, **kwargs):
-        try:
-            return super().create(request, *args, **kwargs)
-        except ValidationError as e:
-            logger.warning(f"BLOCKED SORTIE: User {request.user} failed validation. Error: {e.messages}")
-            return Response(
-                {"error": "Mission Validation Failed", "details": e.messages},
-                status=status.HTTP_400_BAD_REQUEST
-            )
