@@ -61,20 +61,20 @@ class PilotViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='currency-status')
     def currency_status(self, request):
-    # Use prefetch_related to load all sorties at once
-        pilots = Pilot.objects.prefetch_related('sortie_set') 
+        
+        pilots = Pilot.objects.prefetch_related('sorties') 
         report = []
         RULES = {'NIGHT': 30, 'FORM': 30, 'GH': 90, 'IF': 60}
         now = timezone.now()
 
         for pilot in pilots:
             pilot_data = {"callsign": pilot.callsign, "status": {}}
-            # Get all completed sorties for this pilot once
-            completed_sorties = pilot.sortie_set.filter(is_completed=True)
+            
+            # Again, use .sorties here instead of .sortie_set
+            completed_sorties = pilot.sorties.filter(is_completed=True)
             
             for s_type, days in RULES.items():
                 cutoff = now - timedelta(days=days)
-                # Filter the already-loaded list instead of hitting the DB again
                 is_current = completed_sorties.filter(
                     sortie_type=s_type, 
                     scheduled_at__gte=cutoff
