@@ -174,10 +174,14 @@ import os
 from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'core', 'static')
+# This tells Django exactly where to PUT the files
+# It will be: /home/OrionAji/sortie_manager_capstone_project/core/static
+STATIC_ROOT = os.path.join(BASE_DIR, 'static') 
 
-# core/settings.py
+STATIC_URL = '/static/'
+
+# Leave this EMPTY for now to prevent collection errors
+STATICFILES_DIRS = []
 
 
 
