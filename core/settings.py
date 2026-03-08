@@ -170,18 +170,25 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/6.0/howto/static-files/
+
 import os
 from pathlib import Path
+
+# BASE_DIR is /home/OrionAji/sortie_manager_capstone_project/core
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# This tells Django exactly where to PUT the files
-# It will be: /home/OrionAji/sortie_manager_capstone_project/core/static
-STATIC_ROOT = os.path.join(BASE_DIR, 'static') 
-
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 
-# Leave this EMPTY for now to prevent collection errors
+# This is where collectstatic will dump the files
+STATIC_ROOT = '/home/OrionAji/sortie_manager_capstone_project/core/static'
+
+# Empty this to avoid conflicts
 STATICFILES_DIRS = []
 
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
