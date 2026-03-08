@@ -46,29 +46,18 @@ class Sortie(models.Model):
         if self.aircraft.status != 'MC':
             raise ValidationError(f"Cannot schedule: Aircraft {self.aircraft.tail_number} is {self.aircraft.get_status_display()}.")
         
-        # 2. Check Pilot Rest Period (Gap between last flight and THIS flight)
+        # 2. Check Pilot Rest Period
         if self.pilot.last_mission_end and self.scheduled_at:
             rest_duration = self.scheduled_at - self.pilot.last_mission_end
             if rest_duration.total_seconds() < 43200:
-                raise ValidationError("Pilot has not met the mandatory 12-hour rest period.")
+                raise ValidationError(f"Pilot {self.pilot.callsign} requires 12 hours rest. Last mission ended: {self.pilot.last_mission_end.strftime('%H:%M')}")
 
         # 3. Currency Rules Logic
         CURRENCY_RULES = {'NIGHT': 30, 'FORM': 30, 'GH': 90, 'IF': 60}
         days_allowed = CURRENCY_RULES.get(self.sortie_type, 30)
-        
-        # FIXED: Use self.scheduled_at instead of timezone.now()
-        # This checks if they are current AT THE TIME of the proposed mission
         cutoff_date = self.scheduled_at - timedelta(days=days_allowed)
 
-        # Count total previous flights to see if they've ever done this type
-        total_flights = Sortie.objects.filter(
-            pilot=self.pilot, 
-            sortie_type=self.sortie_type,
-            is_completed=True,
-            scheduled_at__lt=self.scheduled_at # Only look at flights BEFORE this one
-        ).count()
-
-        # Check if a flight exists in the window leading up to the mission
+        # Look for ANY completed flight of this type in the window before this mission
         recent_flight_exists = Sortie.objects.filter(
             pilot=self.pilot,
             sortie_type=self.sortie_type,
@@ -76,10 +65,17 @@ class Sortie(models.Model):
             scheduled_at__gte=cutoff_date,
             scheduled_at__lt=self.scheduled_at
         ).exists()
-
-        # Block if not current AND not an instructional flight
-        if total_flights > 0 and not recent_flight_exists and not self.is_instructional:
-             raise ValidationError(
-                f"Pilot {self.pilot.callsign} will be out of currency by {self.scheduled_at.strftime('%Y-%m-%d')}. "
-                f"An instructional flight is required."
+        
+        # BLOCKER: If not recent AND not instructional, block it.
+        # This covers BOTH expired pilots AND brand new pilots.
+        if not recent_flight_exists and not self.is_instructional:
+            raise ValidationError(
+                f"Pilot {self.pilot.callsign} is not current for {self.get_sortie_type_display()} "
+                f"on {self.scheduled_at.date()}. An instructional flight is required."
             )
+             
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+        
