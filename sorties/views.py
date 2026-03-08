@@ -65,21 +65,40 @@ class PilotViewSet(viewsets.ModelViewSet):
         pilots = Pilot.objects.prefetch_related('sorties') 
         report = []
         RULES = {'NIGHT': 30, 'FORM': 30, 'GH': 90, 'IF': 60}
+        
+        # Map sortie types to the model fields we just created
+        BASELINE_MAP = {
+        'NIGHT': 'last_night_flight',
+        'FORM': 'last_formation_flight',
+        'GH': 'last_gh_flight',
+        'IF': 'last_if_flight'
+        }
         now = timezone.now()
 
         for pilot in pilots:
             pilot_data = {"callsign": pilot.callsign, "status": {}}
-            
-            # Again, use .sorties here instead of .sortie_set
-            completed_sorties = pilot.sorties.filter(is_completed=True)
-            
+        
             for s_type, days in RULES.items():
                 cutoff = now - timedelta(days=days)
-                is_current = completed_sorties.filter(
+                
+                # 1. Check if they have a completed sortie in THIS app
+                recent_in_app = pilot.sorties.filter(
                     sortie_type=s_type, 
+                    is_completed=True, 
                     scheduled_at__gte=cutoff
                 ).exists()
-                pilot_data["status"][s_type] = "CURRENT" if is_current else "EXPIRED"
+                
+                # 2. If not, check the Baseline date from their profile
+                baseline_field = BASELINE_MAP.get(s_type)
+                baseline_date = getattr(pilot, baseline_field)
+                recent_in_baseline = baseline_date and baseline_date >= cutoff
+                
+                # 3. If either is true, they are CURRENT
+                if recent_in_app or recent_in_baseline:
+                    pilot_data["status"][s_type] = "CURRENT"
+                else:
+                    pilot_data["status"][s_type] = "EXPIRED"
+                    
             report.append(pilot_data)
         return Response(report)
     

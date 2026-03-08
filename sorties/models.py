@@ -21,6 +21,13 @@ class Pilot(models.Model):
     rank = models.CharField(max_length=20)
     total_hours = models.DecimalField(max_digits=10, decimal_places=2)
     last_mission_end = models.DateTimeField(null=True, blank=True)
+    
+    # --- BASELINE CURRENCY DATES ---
+    # When you create the pilot, you fill these in from their old logbook
+    last_night_flight = models.DateTimeField(null=True, blank=True)
+    last_formation_flight = models.DateTimeField(null=True, blank=True)
+    last_gh_flight = models.DateTimeField(null=True, blank=True)
+    last_if_flight = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.rank} {self.callsign}"
