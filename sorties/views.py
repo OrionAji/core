@@ -37,12 +37,14 @@ class AircraftViewSet(viewsets.ModelViewSet):
     def readiness_report(self, request):
         """Quick summary of fleet readiness for the dashboard."""
         total = self.get_queryset().count()
-        ready = self.get_queryset().filter(status='Ready').count()
+        ready = self.get_queryset().filter(status='Mision Capable').count()
         maintenance = self.get_queryset().filter(status='In Maintenance').count()
+        grounded = self.get_queryset().filter(status='Grounded').count()
         return Response({
             "total_aircraft": total,
             "ready_for_flight": ready,
             "in_maintenance": maintenance,
+            "grounded": grounded,
             "readiness_rate": f"{(ready/total)*100:.1f}%" if total > 0 else "0%"
         })
 
