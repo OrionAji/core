@@ -46,29 +46,34 @@ class Sortie(models.Model):
         if self.aircraft.status != 'MC':
             raise ValidationError(f"Cannot schedule: Aircraft {self.aircraft.tail_number} is {self.aircraft.get_status_display()}.")
         
-        # 2. FIXED: Check Pilot Rest Period (12 hours before the SORTIE starts)
+        # 2. Check Pilot Rest Period (Gap between last flight and THIS flight)
         if self.pilot.last_mission_end and self.scheduled_at:
-            # Calculate the gap between the last flight and the NEW flight
             rest_duration = self.scheduled_at - self.pilot.last_mission_end
-            
-            if rest_duration.total_seconds() < 43200: # 43200 seconds = 12 hours
-                raise ValidationError(
-                    f"Rest Violation: This mission starts at {self.scheduled_at.strftime('%H:%M')}. "
-                    f"The pilot only landed at {self.pilot.last_mission_end.strftime('%H:%M')}. "
-                    "12 hours of rest required."
-                )
-        # 3. Check Currency Rules
-        errors = {}
+            if rest_duration.total_seconds() < 43200:
+                raise ValidationError("Pilot has not met the mandatory 12-hour rest period.")
+
+        # 3. Currency Rules Logic
+        CURRENCY_RULES = {'NIGHT': 30, 'FORM': 30, 'GH': 90, 'IF': 60}
+        days_allowed = CURRENCY_RULES.get(self.sortie_type, 30)
+        cutoff_date = timezone.now() - timedelta(days=days_allowed)
+
+        # --- THIS MUST BE DEFINED FIRST ---
+        total_flights = Sortie.objects.filter(
+            pilot=self.pilot, 
+            sortie_type=self.sortie_type,
+            is_completed=True
+        ).count()
+
+        recent_flight_exists = Sortie.objects.filter(
+            pilot=self.pilot,
+            sortie_type=self.sortie_type,
+            scheduled_at__gte=cutoff_date,
+            is_completed=True
+        ).exists()
+
+        # Now total_flights is defined and can be used safely
         if total_flights > 0 and not recent_flight_exists and not self.is_instructional:
-            errors['currency'] = f"Pilot {self.pilot.callsign} is out of currency for {self.get_sortie_type_display()}."
-
-        # If the dictionary isn't empty, throw all errors at once
-        if errors:
-            raise ValidationError(errors)
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"Mission {self.mission_id} - {self.pilot.callsign}"
+             raise ValidationError(
+                f"Pilot {self.pilot.callsign} is out of currency for {self.get_sortie_type_display()}. "
+                f"Needs instructional flight."
+            )
