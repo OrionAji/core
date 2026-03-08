@@ -55,25 +55,31 @@ class Sortie(models.Model):
         # 3. Currency Rules Logic
         CURRENCY_RULES = {'NIGHT': 30, 'FORM': 30, 'GH': 90, 'IF': 60}
         days_allowed = CURRENCY_RULES.get(self.sortie_type, 30)
-        cutoff_date = timezone.now() - timedelta(days=days_allowed)
+        
+        # FIXED: Use self.scheduled_at instead of timezone.now()
+        # This checks if they are current AT THE TIME of the proposed mission
+        cutoff_date = self.scheduled_at - timedelta(days=days_allowed)
 
-        # --- THIS MUST BE DEFINED FIRST ---
+        # Count total previous flights to see if they've ever done this type
         total_flights = Sortie.objects.filter(
             pilot=self.pilot, 
             sortie_type=self.sortie_type,
-            is_completed=True
+            is_completed=True,
+            scheduled_at__lt=self.scheduled_at # Only look at flights BEFORE this one
         ).count()
 
+        # Check if a flight exists in the window leading up to the mission
         recent_flight_exists = Sortie.objects.filter(
             pilot=self.pilot,
             sortie_type=self.sortie_type,
+            is_completed=True,
             scheduled_at__gte=cutoff_date,
-            is_completed=True
+            scheduled_at__lt=self.scheduled_at
         ).exists()
 
-        # Now total_flights is defined and can be used safely
+        # Block if not current AND not an instructional flight
         if total_flights > 0 and not recent_flight_exists and not self.is_instructional:
              raise ValidationError(
-                f"Pilot {self.pilot.callsign} is out of currency for {self.get_sortie_type_display()}. "
-                f"Needs instructional flight."
+                f"Pilot {self.pilot.callsign} will be out of currency by {self.scheduled_at.strftime('%Y-%m-%d')}. "
+                f"An instructional flight is required."
             )
