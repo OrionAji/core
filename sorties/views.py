@@ -82,3 +82,19 @@ class PilotViewSet(viewsets.ModelViewSet):
                 pilot_data["status"][s_type] = "CURRENT" if is_current else "EXPIRED"
             report.append(pilot_data)
         return Response(report)
+    
+class SortieViewSet(viewsets.ModelViewSet):
+    queryset = Sortie.objects.all()
+    serializer_class = SortieSerializer
+
+    def create(self, request, *args, **kwargs):
+        """Custom create to catch validation errors from models.py"""
+        try:
+            return super().create(request, *args, **kwargs)
+        except ValidationError as e:
+            # This logs the specific reason (rest period, currency, etc.) to your file
+            logger.warning(f"BLOCKED SORTIE: User {request.user} failed validation. Error: {e.messages}")
+            return Response(
+                {"error": "Mission Validation Failed", "details": e.messages},
+                status=status.HTTP_400_BAD_REQUEST
+            )
