@@ -36,4 +36,7 @@ urlpatterns = [
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/v1/', include('sorties.urls')),
+    
+    path('accounts/', include('django.contrib.auth.urls')), # Provides login/logout
+    path('signup/', SignUpView.as_view(), name='signup'),  # Your custom register page
 ]
